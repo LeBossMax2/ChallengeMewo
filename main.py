@@ -25,7 +25,7 @@ model.compile(loss=custom_loss, optimizer="adam", metrics="mae")
 model.summary()
 
 batch_size = 10
-epochs = 20
+epochs = 30
 
 model.fit(x_train, y_train,
           batch_size=batch_size,
