@@ -11,8 +11,6 @@ y_data = pd.read_csv("../train_y.csv", index_col=0, sep=',')
 
 x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data, y_data)
 
-x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
-
 model = Sequential()
 
 custom_loss = tf.keras.losses.BinaryCrossentropy()
@@ -25,7 +23,7 @@ model.compile(loss=custom_loss, optimizer="adam", metrics="mae")
 model.summary()
 
 batch_size = 10
-epochs = 30
+epochs = 50
 
 model.fit(x_train, y_train,
           batch_size=batch_size,
@@ -37,7 +35,22 @@ score = model.evaluate(x_valid, y_valid, verbose=0)
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
 
-res = model.predict(x_test)
-res = tf.greater(res, tf.constant([0.5]))
-res_df = pd.DataFrame(res, columns=y_data.columns).astype(int)
-res_df.to_csv("../pred_y.csv")
+x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
+
+nb_split = 30
+
+index_split = np.array_split(x_test.index, nb_split)
+
+for i, x_test_split in enumerate(np.array_split(x_test, nb_split)):
+    print(f"\tSplit {i+1}/{nb_split}")
+
+    res = model.predict(x_test_split)
+    res = tf.greater(res, tf.constant([0.5]))
+    res_df = pd.DataFrame(res, columns=y_data.columns).astype(int)
+    res_df.loc[:,'ChallengeID'] = x_test_split.index
+    res_df.set_index('ChallengeID', inplace=True)
+
+    if i == 0 :
+        res_df.to_csv("../pred_y.csv")
+    else:
+        res_df.to_csv("../pred_y.csv", mode='a', header=False)
