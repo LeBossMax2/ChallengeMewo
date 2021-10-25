@@ -15,15 +15,15 @@ model = Sequential()
 
 custom_loss = tf.keras.losses.BinaryCrossentropy()
 
-model.add(Dense(100, activation="relu", input_dim = x_train.shape[1]))
-model.add(Dense(100, activation="relu"))
+model.add(Dense(300, activation="relu", input_dim = x_train.shape[1]))
+model.add(Dense(280, activation="relu"))
 model.add(Dense(248, activation="sigmoid"))
 model.compile(loss=custom_loss, optimizer="adam", metrics="mae")
 
 model.summary()
 
 batch_size = 10
-epochs = 50
+epochs = 40
 
 model.fit(x_train, y_train,
           batch_size=batch_size,
@@ -37,20 +37,20 @@ print('Test accuracy:', score[1])
 
 x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
 
-nb_split = 30
+nb_split = 100
 
 index_split = np.array_split(x_test.index, nb_split)
 
-for i, x_test_split in enumerate(np.array_split(x_test, nb_split)):
-    print(f"\tSplit {i+1}/{nb_split}")
+with open("../pred_y.csv", "w") as file:
+    file.write("ChallengeID,")
+    np.savetxt(file, y_data.columns.to_numpy().reshape(1, len(y_data.columns)), fmt='%s', delimiter=",")
 
-    res = model.predict(x_test_split)
-    res = tf.greater(res, tf.constant([0.5]))
-    res_df = pd.DataFrame(res, columns=y_data.columns).astype(int)
-    res_df.loc[:,'ChallengeID'] = x_test_split.index
-    res_df.set_index('ChallengeID', inplace=True)
+    for i, x_test_split in enumerate(np.array_split(x_test, nb_split)):
+        print(f"\tSplit {i+1}/{nb_split}")
 
-    if i == 0 :
-        res_df.to_csv("../pred_y.csv")
-    else:
-        res_df.to_csv("../pred_y.csv", mode='a', header=False)
+        res = model.predict(x_test_split)
+        res = res > 0.5
+        res = res.astype(int)
+        res = np.concatenate((index_split[i].to_numpy().reshape(res.shape[0], 1), res), axis=1)
+
+        np.savetxt(file, res, fmt='%d', delimiter=",")
