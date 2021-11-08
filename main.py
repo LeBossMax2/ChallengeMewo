@@ -14,11 +14,12 @@ x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_
 model = Sequential()
 
 custom_loss = tf.keras.losses.BinaryCrossentropy()
+custom_opt = tf.keras.optimizers.Adam(learning_rate=0.01)
 
 model.add(Dense(300, activation="relu", input_dim = x_train.shape[1]))
 model.add(Dense(280, activation="relu"))
 model.add(Dense(248, activation="sigmoid"))
-model.compile(loss=custom_loss, optimizer="adam", metrics="mae")
+model.compile(loss=custom_loss, optimizer=custom_opt, metrics="mae")
 
 model.summary()
 
