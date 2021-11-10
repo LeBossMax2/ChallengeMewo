@@ -3,17 +3,22 @@ import pandas as pd
 import sklearn.model_selection
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate
+from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation
 from custom_metric import custom_metric_function
 
 x_data_init = pd.read_csv("../train_X.csv", index_col=0, sep=',')
 y_data = pd.read_csv("../train_y.csv", index_col=0, sep=',')
 
-x_data = []
-for rng in [range(0, 90), range(90, 202), range(202, 248), range(248, 266), range(266, 281), range(281, 289)]:
-    x_data += [x_data_init.iloc[:, rng]]
+def splitter(data):
+    x_data = []
+    for rng in [range(0, 90), range(90, 202), range(202, 248), range(248, 266), range(266, 281), range(281, 289)]:
+        x_data += [data.iloc[:, rng]]
+    return x_data
 
-x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data, y_data)
+x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data_init, y_data)
+
+x_train = splitter(x_train)
+x_valid = splitter(x_valid)
 
 custom_loss = tf.keras.losses.BinaryCrossentropy()
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.01)
@@ -41,9 +46,9 @@ second_part = Dense(280, activation="relu")(layer)
 last_part = []
 
 for i in range(0, 3):
-    layer = Dense(150, activation="relu")(second_part)
-    layer = Concatenate()([layer, input_layers[i]])
-    last_part += [Dense(input_layers[i].shape[1], activation="sigmoid")(layer)]
+    layer = Dense(input_layers[i].shape[1])(second_part)
+    layer = Add()([layer, input_layers[i]])
+    last_part += [Activation("sigmoid")(layer)]
 
 model = Model(inputs = input_layers, outputs = Concatenate()(last_part))
 
@@ -75,6 +80,7 @@ with open("../pred_y.csv", "w") as file:
     np.savetxt(file, y_data.columns.to_numpy().reshape(1, len(y_data.columns)), fmt='%s', delimiter=",")
 
     for i, x_test_split in enumerate(np.array_split(x_test, nb_split)):
+        x_test_split = splitter(x_test_split)
         print(f"\tSplit {i+1}/{nb_split}")
 
         res = model.predict(x_test_split)
