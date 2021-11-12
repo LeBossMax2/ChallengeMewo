@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import sklearn.model_selection
 import tensorflow as tf
+import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation
 from custom_metric import custom_metric_function
@@ -15,13 +16,33 @@ def splitter(data):
         x_data += [data.iloc[:, rng]]
     return x_data
 
+def f1(y_true, y_pred):
+    y_pred = K.round(y_pred)
+    return 1 - f1_loss(y_true, y_pred)
+
+# Function inspired by https://www.kaggle.com/rejpalcz/best-loss-function-for-f1-score-metric
+def f1_loss(y_true, y_pred):
+    y_true = K.cast(y_true, 'float')
+    y_pred = K.cast(y_pred, 'float')
+
+    tp = K.sum(y_true * y_pred, axis=0)
+    fp = K.sum((1 - y_true) * y_pred, axis=0)
+    fn = K.sum(y_true * (1 - y_pred), axis=0)
+
+    p = tp / (tp + fp + K.epsilon())
+    r = tp / (tp + fn + K.epsilon())
+
+    f1 = 2 * p * r / (p + r + K.epsilon())
+    f1 = tf.where(tf.math.is_nan(f1), tf.zeros_like(f1), f1)
+    return 1 - K.mean(f1)
+
 x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data_init, y_data)
 
 x_train = splitter(x_train)
 x_valid = splitter(x_valid)
 
-custom_loss = tf.keras.losses.BinaryCrossentropy()
-custom_opt = tf.keras.optimizers.Adam(learning_rate=0.01)
+custom_loss = f1_loss #tf.keras.losses.BinaryCrossentropy()
+custom_opt = tf.keras.optimizers.Adam(learning_rate=0.001)
 
 input_layers = [
     Input(shape = (90,)),
@@ -36,23 +57,26 @@ first_part = []
 
 for i in range(0, 3):
     layer = Concatenate()([input_layers[i], input_layers[i + 3]])
-    layer = Dense(150, activation="relu")(layer)
-    first_part += [Dense(150, activation="relu")(layer)]
+    #layer = Dense(150, activation="relu")(layer)
+    first_part += [Dense(int((input_layers[i].shape[1] + input_layers[i + 3].shape[1]) * 1.5), activation="relu")(layer)]
 
 layer = Concatenate()(first_part)
-layer = Dense(280, activation="relu")(layer)
-second_part = Dense(280, activation="relu")(layer)
+second_part = Dense(450, activation="relu")(layer)
+second_part = Dense(400, activation="relu")(layer)
 
 last_part = []
 
 for i in range(0, 3):
-    layer = Dense(input_layers[i].shape[1])(second_part)
-    layer = Add()([layer, input_layers[i]])
+    #layer = Dense(input_layers[i].shape[1] * 2, activation="relu")(second_part)
+    #layer = Dense(input_layers[i].shape[1])(layer)
+    layer = Dense(int(input_layers[i].shape[1] * 1.5), activation="relu")(second_part)
+    layer = Dense(input_layers[i].shape[1])(layer)
+    layer = Add()([input_layers[i], layer])
     last_part += [Activation("sigmoid")(layer)]
 
 model = Model(inputs = input_layers, outputs = Concatenate()(last_part))
 
-model.compile(loss=custom_loss, optimizer=custom_opt, metrics="mae")
+model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", f1])
 
 model.summary()
 
