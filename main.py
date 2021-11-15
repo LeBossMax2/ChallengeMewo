@@ -5,6 +5,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation
+from tensorflow.keras.callbacks import EarlyStopping
 from custom_metric import custom_metric_function
 
 x_data_init = pd.read_csv("../train_X.csv", index_col=0, sep=',')
@@ -42,7 +43,7 @@ x_train = splitter(x_train)
 x_valid = splitter(x_valid)
 
 custom_loss = f1_loss #tf.keras.losses.BinaryCrossentropy()
-custom_opt = tf.keras.optimizers.Adam(learning_rate=0.001)
+custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
 input_layers = [
     Input(shape = (90,)),
@@ -53,45 +54,61 @@ input_layers = [
     Input(shape = (8,))
 ]
 
-first_part = []
+def block(inputs):
+    first_part = []
 
-for i in range(0, 3):
-    layer = Concatenate()([input_layers[i], input_layers[i + 3]])
-    #layer = Dense(150, activation="relu")(layer)
-    first_part += [Dense(int((input_layers[i].shape[1] + input_layers[i + 3].shape[1]) * 1.5), activation="relu")(layer)]
+    for i in range(0, 3):
+        layer = Concatenate()([inputs[i], inputs[i + 3]])
+        #layer = Dense(150, activation="relu")(layer)
+        first_part += [Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.5), activation="relu")(layer)]
 
-layer = Concatenate()(first_part)
-second_part = Dense(450, activation="relu")(layer)
-second_part = Dense(400, activation="relu")(layer)
+    layer = Concatenate()(first_part)
+    second_part = Dense(450, activation="relu")(layer)
+    second_part = Dense(400, activation="relu")(layer)
 
-last_part = []
+    last_part = []
 
-for i in range(0, 3):
-    #layer = Dense(input_layers[i].shape[1] * 2, activation="relu")(second_part)
-    #layer = Dense(input_layers[i].shape[1])(layer)
-    layer = Dense(int(input_layers[i].shape[1] * 1.5), activation="relu")(second_part)
-    layer = Dense(input_layers[i].shape[1])(layer)
-    layer = Add()([input_layers[i], layer])
-    last_part += [Activation("sigmoid")(layer)]
+    for i in range(0, 3):
+        #layer = Dense(input_layers[i].shape[1] * 2, activation="relu")(second_part)
+        #layer = Dense(input_layers[i].shape[1])(layer)
+        layer = Dense(int(inputs[i].shape[1] * 1.5), activation="relu")(second_part)
+        layer = Dense(inputs[i].shape[1])(layer)
+        layer = Add()([inputs[i], layer])
+        last_part += [Activation("sigmoid")(layer)]
+    
+    return last_part
 
-model = Model(inputs = input_layers, outputs = Concatenate()(last_part))
+b1 = block(input_layers)
+
+#b2 = block(b1 + input_layers[3:])
+
+#b3 = block(b2 + input_layers[3:])
+
+
+model = Model(inputs = input_layers, outputs = Concatenate()(b1))
 
 model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", f1])
 
 model.summary()
 
-batch_size = 10
-epochs = 8
+batch_size = 512
+epochs = 200
 
 model.fit(x_train, y_train,
-          batch_size=batch_size,
-          epochs=epochs,
-          verbose=1,
-          validation_data=(x_valid, y_valid))
+        batch_size=batch_size,
+        epochs=epochs,
+        verbose=2,
+        validation_data=(x_valid, y_valid),
+        callbacks=
+        [
+            EarlyStopping(
+                monitor='val_loss', min_delta=0, patience=4, verbose=0, restore_best_weights=True
+            )
+        ])
 
 score = model.evaluate(x_valid, y_valid, verbose=0)
-print('Test loss:', score[0])
-print('Test accuracy:', score[1])
+print('Val loss:', score[0])
+print('Val metrics:', score[1:])
 
 x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
 
