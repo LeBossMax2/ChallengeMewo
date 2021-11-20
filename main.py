@@ -37,12 +37,34 @@ def f1_loss(y_true, y_pred):
     f1 = tf.where(tf.math.is_nan(f1), tf.zeros_like(f1), f1)
     return 1 - K.mean(f1)
 
+def weighted_f1(y_true, y_pred):
+    y_pred = K.round(y_pred)
+    return 1 - weighted_f1_loss(y_true, y_pred)
+
+def weighted_f1_loss(y_true, y_pred):
+    y_true = K.cast(y_true, 'float')
+    y_pred = K.cast(y_pred, 'float')
+
+    gp = K.sum(y_true, axis=0)
+    tp = K.sum(y_true * y_pred, axis=0)
+    fp = K.sum((1 - y_true) * y_pred, axis=0)
+    fn = K.sum(y_true * (1 - y_pred), axis=0)
+
+    p = tp / (tp + fp + K.epsilon())
+    r = tp / (tp + fn + K.epsilon())
+
+    f1 = 2 * p * r / (p + r + K.epsilon())
+    weighted_f1 = f1 * gp / K.sum(gp) 
+    weighted_f1 = K.sum(weighted_f1)
+    weighted_f1 = tf.where(tf.math.is_nan(weighted_f1), tf.zeros_like(weighted_f1), weighted_f1)
+    return 1 - K.mean(weighted_f1)
+
 x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data_init, y_data)
 
 x_train = splitter(x_train)
 x_valid = splitter(x_valid)
 
-custom_loss = f1_loss #tf.keras.losses.BinaryCrossentropy()
+custom_loss = weighted_f1_loss #tf.keras.losses.BinaryCrossentropy()
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
 input_layers = [
@@ -87,7 +109,7 @@ b1 = block(input_layers)
 
 model = Model(inputs = input_layers, outputs = Concatenate()(b1))
 
-model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", f1])
+model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", weighted_f1, f1])
 
 model.summary()
 
