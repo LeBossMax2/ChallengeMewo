@@ -55,9 +55,8 @@ def weighted_f1_loss(y_true, y_pred):
 
     f1 = 2 * p * r / (p + r + K.epsilon())
     weighted_f1 = f1 * gp / K.sum(gp) 
-    weighted_f1 = K.sum(weighted_f1)
     weighted_f1 = tf.where(tf.math.is_nan(weighted_f1), tf.zeros_like(weighted_f1), weighted_f1)
-    return 1 - K.mean(weighted_f1)
+    return 1 - K.sum(weighted_f1)
 
 x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data_init, y_data)
 
@@ -85,7 +84,6 @@ def block(inputs):
         first_part += [Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.5), activation="relu")(layer)]
 
     layer = Concatenate()(first_part)
-    second_part = Dense(450, activation="relu")(layer)
     second_part = Dense(400, activation="relu")(layer)
 
     last_part = []
@@ -93,8 +91,7 @@ def block(inputs):
     for i in range(0, 3):
         #layer = Dense(input_layers[i].shape[1] * 2, activation="relu")(second_part)
         #layer = Dense(input_layers[i].shape[1])(layer)
-        layer = Dense(int(inputs[i].shape[1] * 1.5), activation="relu")(second_part)
-        layer = Dense(inputs[i].shape[1])(layer)
+        layer = Dense(inputs[i].shape[1])(second_part)
         layer = Add()([inputs[i], layer])
         last_part += [Activation("sigmoid")(layer)]
     
@@ -131,6 +128,8 @@ model.fit(x_train, y_train,
 score = model.evaluate(x_valid, y_valid, verbose=0)
 print('Val loss:', score[0])
 print('Val metrics:', score[1:])
+
+model.save_weights("weights")
 
 x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
 
