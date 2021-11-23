@@ -75,43 +75,39 @@ input_layers = [
     Input(shape = (8,))
 ]
 
-def block(inputs):
+def block(inputs, act):
     first_part = []
 
     for i in range(0, 3):
         layer = Concatenate()([inputs[i], inputs[i + 3]])
         #layer = Dense(150, activation="relu")(layer)
-        first_part += [Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.5), activation="relu")(layer)]
+        first_part += [Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.2), activation="relu")(layer)]
 
     layer = Concatenate()(first_part)
-    second_part = Dense(400, activation="relu")(layer)
+    layer = Dense(400, activation="relu")(layer)
+    second_part = Dropout(0.1)(layer)
 
     last_part = []
 
     for i in range(0, 3):
-        #layer = Dense(input_layers[i].shape[1] * 2, activation="relu")(second_part)
-        #layer = Dense(input_layers[i].shape[1])(layer)
         layer = Dense(inputs[i].shape[1])(second_part)
         layer = Add()([inputs[i], layer])
-        last_part += [Activation("sigmoid")(layer)]
+        last_part += [Activation(act)(layer)]
     
     return last_part
 
-b1 = block(input_layers)
+b = block(input_layers, "relu")
+#b = block(b + input_layers[3:], "relu")
+b = block(b + input_layers[3:], "sigmoid")
 
-#b2 = block(b1 + input_layers[3:])
-
-#b3 = block(b2 + input_layers[3:])
-
-
-model = Model(inputs = input_layers, outputs = Concatenate()(b1))
+model = Model(inputs = input_layers, outputs = Concatenate()(b))
 
 model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", weighted_f1, f1])
 
 model.summary()
 
 batch_size = 512
-epochs = 200
+epochs = 600
 
 model.fit(x_train, y_train,
         batch_size=batch_size,
@@ -121,7 +117,7 @@ model.fit(x_train, y_train,
         callbacks=
         [
             EarlyStopping(
-                monitor='val_loss', min_delta=0, patience=4, verbose=0, restore_best_weights=True
+                monitor='val_loss', min_delta=0, patience=8, verbose=0, restore_best_weights=True
             )
         ])
 
