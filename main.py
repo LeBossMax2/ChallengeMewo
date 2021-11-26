@@ -39,6 +39,12 @@ def weighted_f1(y_true, y_pred):
     y_pred = K.round(y_pred)
     return 1 - weighted_f1_loss(y_true, y_pred)
 
+def partial_weighted_f1(slice, name):
+    def metric(y_true, y_pred):
+        return weighted_f1(y_true[:, slice], y_pred[:, slice])
+    metric.__name__ = 'wf1_' + name
+    return metric
+
 def weighted_f1_loss(y_true, y_pred):
     y_true = K.cast(y_true, 'float')
     y_pred = K.cast(y_pred, 'float')
@@ -68,6 +74,8 @@ x_valid = splitter(x_valid)
 # Create model
 custom_loss = weighted_f1_loss #tf.keras.losses.BinaryCrossentropy()
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
+metrics=["mae", "accuracy", weighted_f1, f1,
+    partial_weighted_f1(slice(0, 90), "genres"), partial_weighted_f1(slice(90, 202), "instruments"), partial_weighted_f1(slice(202, 248), "moods")]
 
 input_layers = [
     Input(shape = (90,)),
@@ -105,7 +113,7 @@ b = block(b + input_layers[3:], "sigmoid")
 
 model = Model(inputs = input_layers, outputs = Concatenate()(b))
 
-model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy", weighted_f1, f1])
+model.compile(loss=custom_loss, optimizer=custom_opt, metrics=metrics)
 
 model.summary()
 
