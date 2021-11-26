@@ -6,10 +6,8 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation
 from tensorflow.keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt
 from custom_metric import custom_metric_function
-
-x_data_init = pd.read_csv("../train_X.csv", index_col=0, sep=',')
-y_data = pd.read_csv("../train_y.csv", index_col=0, sep=',')
 
 def splitter(data):
     x_data = []
@@ -58,11 +56,16 @@ def weighted_f1_loss(y_true, y_pred):
     weighted_f1 = tf.where(tf.math.is_nan(weighted_f1), tf.zeros_like(weighted_f1), weighted_f1)
     return 1 - K.sum(weighted_f1)
 
+# Read train data
+x_data_init = pd.read_csv("../train_X.csv", index_col=0, sep=',')
+y_data = pd.read_csv("../train_y.csv", index_col=0, sep=',')
+
 x_train, x_valid, y_train, y_valid = sklearn.model_selection.train_test_split(x_data_init, y_data)
 
 x_train = splitter(x_train)
 x_valid = splitter(x_valid)
 
+# Create model
 custom_loss = weighted_f1_loss #tf.keras.losses.BinaryCrossentropy()
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
@@ -106,10 +109,11 @@ model.compile(loss=custom_loss, optimizer=custom_opt, metrics=["mae", "accuracy"
 
 model.summary()
 
+# Train model
 batch_size = 512
 epochs = 600
 
-model.fit(x_train, y_train,
+hist = model.fit(x_train, y_train,
         batch_size=batch_size,
         epochs=epochs,
         verbose=2,
@@ -121,12 +125,23 @@ model.fit(x_train, y_train,
             )
         ])
 
+model.save_weights("weights")
+
+# Print results
 score = model.evaluate(x_valid, y_valid, verbose=0)
 print('Val loss:', score[0])
 print('Val metrics:', score[1:])
 
-model.save_weights("weights")
+# Show loss history
+plt.plot(hist.history['loss'])
+plt.plot(hist.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'val'], loc='upper left')
+plt.show()
 
+# Compute test prediction
 x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
 
 nb_split = 100
