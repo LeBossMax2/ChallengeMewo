@@ -62,6 +62,11 @@ def weighted_f1_loss(y_true, y_pred):
     weighted_f1 = tf.where(tf.math.is_nan(weighted_f1), tf.zeros_like(weighted_f1), weighted_f1)
     return 1 - K.sum(weighted_f1)
 
+def wf1_loss_p(y_true, y_pred):
+    return (weighted_f1_loss(y_true[slice(0, 90)], y_pred[slice(0, 90)])
+          + weighted_f1_loss(y_true[slice(90, 202)], y_pred[slice(90, 202)])
+          + weighted_f1_loss(y_true[slice(202, 248)], y_pred[slice(202, 248)])) / 3.0
+
 # Read train data
 x_data_init = pd.read_csv("../train_X.csv", index_col=0, sep=',')
 y_data = pd.read_csv("../train_y.csv", index_col=0, sep=',')
@@ -72,7 +77,7 @@ x_train = splitter(x_train)
 x_valid = splitter(x_valid)
 
 # Create model
-custom_loss = weighted_f1_loss #tf.keras.losses.BinaryCrossentropy()
+custom_loss = wf1_loss_p
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
 metrics=["mae", "accuracy", weighted_f1, f1,
     partial_weighted_f1(slice(0, 90), "genres"), partial_weighted_f1(slice(90, 202), "instruments"), partial_weighted_f1(slice(202, 248), "moods")]
