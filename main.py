@@ -4,7 +4,7 @@ import sklearn.model_selection
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation
+from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 from custom_metric import custom_metric_function
@@ -97,10 +97,13 @@ def block(inputs, act):
     for i in range(0, 3):
         layer = Concatenate()([inputs[i], inputs[i + 3]])
         #layer = Dense(150, activation="relu")(layer)
-        first_part += [Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.2), activation="relu")(layer)]
+        layer = Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.2), activation="relu")(layer)
+        first_part += [layer]
 
     layer = Concatenate()(first_part)
-    layer = Dense(400, activation="relu")(layer)
+    layer = Dense(400)(layer)
+    layer = BatchNormalization()(layer)
+    layer = Activation("relu")(layer)
     second_part = Dropout(0.1)(layer)
 
     last_part = []
