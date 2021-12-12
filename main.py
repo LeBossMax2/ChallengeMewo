@@ -102,7 +102,7 @@ def block(inputs, act):
 
     layer = Concatenate()(first_part)
     layer = Dense(400)(layer)
-    layer = BatchNormalization()(layer)
+    #layer = BatchNormalization()(layer)
     layer = Activation("relu")(layer)
     second_part = Dropout(0.1)(layer)
 
@@ -115,9 +115,11 @@ def block(inputs, act):
     
     return last_part
 
+paired_input = [Concatenate()([input_layers[0], input_layers[3]]), Concatenate()([input_layers[1], input_layers[4]]), Concatenate()([input_layers[2], input_layers[5]])]
+
 b = block(input_layers, "relu")
-#b = block(b + input_layers[3:], "relu")
-b = block(b + input_layers[3:], "sigmoid")
+#b = block(b + paired_input, "relu")
+b = block(b + paired_input, "sigmoid")
 
 model = Model(inputs = input_layers, outputs = Concatenate()(b))
 
