@@ -79,7 +79,7 @@ x_valid = splitter(x_valid)
 # Create model
 custom_loss = wf1_loss_p
 custom_opt = tf.keras.optimizers.Adam(learning_rate=0.0001)
-metrics=["mae", "accuracy", weighted_f1, f1,
+metrics=["mae", "binary_accuracy", weighted_f1, f1,
     partial_weighted_f1(slice(0, 90), "genres"), partial_weighted_f1(slice(90, 202), "instruments"), partial_weighted_f1(slice(202, 248), "moods")]
 
 input_layers = [
@@ -151,13 +151,24 @@ print('Val loss:', score[0])
 print('Val metrics:', score[1:])
 
 # Show loss history
+plt.figure(figsize=(15,5))
+plt.subplot(1,2,1)
 plt.plot(hist.history['loss'])
 plt.plot(hist.history['val_loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
 plt.legend(['train', 'val'], loc='upper left')
-plt.show()
+plt.subplot(1,2,2)
+for t in ["genres", "instruments", "moods"]:
+    plt.plot(hist.history["wf1_" + t], label=t+" train")
+    plt.plot(hist.history["val_wf1_" + t], label=t+" val")
+plt.title('model partial weighted f1 score')
+plt.ylabel('weighted f1 score')
+plt.xlabel('epoch')
+plt.legend(loc='upper left')
+plt.savefig("history.png")
+plt.savefig("history.pdf")
 
 # Compute test prediction
 x_test = pd.read_csv("../test_X.csv", index_col=0, sep=',')
