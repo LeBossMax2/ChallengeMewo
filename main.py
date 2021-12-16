@@ -7,20 +7,25 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Concatenate, Add, Activation, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
-from custom_metric import custom_metric_function
+
 
 def splitter(data):
+    '''
+    Splits the input data into arrays of tag-genres, tag-instruments, tag-moods, category-genres, category-instruments and category-moods
+    '''
     x_data = []
     for rng in [range(0, 90), range(90, 202), range(202, 248), range(248, 266), range(266, 281), range(281, 289)]:
         x_data += [data.iloc[:, rng]]
     return x_data
 
 def f1(y_true, y_pred):
+    '''Computes the F1 score'''
     y_pred = K.round(y_pred)
     return 1 - f1_loss(y_true, y_pred)
 
 # Function inspired by https://www.kaggle.com/rejpalcz/best-loss-function-for-f1-score-metric
 def f1_loss(y_true, y_pred):
+    '''Computes the loss function based on F1 score based'''
     y_true = K.cast(y_true, 'float')
     y_pred = K.cast(y_pred, 'float')
 
@@ -36,16 +41,19 @@ def f1_loss(y_true, y_pred):
     return 1 - K.mean(f1)
 
 def weighted_f1(y_true, y_pred):
+    '''Computes the weighted F1 score'''
     y_pred = K.round(y_pred)
     return 1 - weighted_f1_loss(y_true, y_pred)
 
 def partial_weighted_f1(slice, name):
+    '''Produces a metric function computing the weighted F1 score on the given slice od data'''
     def metric(y_true, y_pred):
         return weighted_f1(y_true[:, slice], y_pred[:, slice])
     metric.__name__ = 'wf1_' + name
     return metric
 
 def weighted_f1_loss(y_true, y_pred):
+    '''Computes the loss function based on weighted F1 score'''
     y_true = K.cast(y_true, 'float')
     y_pred = K.cast(y_pred, 'float')
 
@@ -63,6 +71,7 @@ def weighted_f1_loss(y_true, y_pred):
     return 1 - K.sum(weighted_f1)
 
 def wf1_loss_p(y_true, y_pred):
+    '''Computes the loss function based on the weighted F1 score of genres, instruments and moods'''
     return (weighted_f1_loss(y_true[slice(0, 90)], y_pred[slice(0, 90)])
           + weighted_f1_loss(y_true[slice(90, 202)], y_pred[slice(90, 202)])
           + weighted_f1_loss(y_true[slice(202, 248)], y_pred[slice(202, 248)])) / 3.0
@@ -92,17 +101,17 @@ input_layers = [
 ]
 
 def block(inputs, act):
+    '''Creates a model block using the given input layers'''
     first_part = []
 
     for i in range(0, 3):
+        # Use a différent layer for each tag type
         layer = Concatenate()([inputs[i], inputs[i + 3]])
-        #layer = Dense(150, activation="relu")(layer)
         layer = Dense(int((inputs[i].shape[1] + inputs[i + 3].shape[1]) * 1.2), activation="relu")(layer)
         first_part += [layer]
 
     layer = Concatenate()(first_part)
     layer = Dense(400)(layer)
-    #layer = BatchNormalization()(layer)
     layer = Activation("relu")(layer)
     second_part = Dropout(0.1)(layer)
 
@@ -110,6 +119,7 @@ def block(inputs, act):
 
     for i in range(0, 3):
         layer = Dense(inputs[i].shape[1])(second_part)
+        # We consider the output of this layer as an offset to add to the original values
         layer = Add()([inputs[i], layer])
         last_part += [Activation(act)(layer)]
     
@@ -118,7 +128,6 @@ def block(inputs, act):
 paired_input = [Concatenate()([input_layers[0], input_layers[3]]), Concatenate()([input_layers[1], input_layers[4]]), Concatenate()([input_layers[2], input_layers[5]])]
 
 b = block(input_layers, "relu")
-#b = block(b + paired_input, "relu")
 b = block(b + paired_input, "sigmoid")
 
 model = Model(inputs = input_layers, outputs = Concatenate()(b))
@@ -138,6 +147,7 @@ hist = model.fit(x_train, y_train,
         validation_data=(x_valid, y_valid),
         callbacks=
         [
+            # Early stopping to reduce overfitting
             EarlyStopping(
                 monitor='val_loss', min_delta=0, patience=8, verbose=0, restore_best_weights=True
             )
@@ -150,7 +160,7 @@ score = model.evaluate(x_valid, y_valid, verbose=0)
 print('Val loss:', score[0])
 print('Val metrics:', score[1:])
 
-# Show loss history
+# Show loss and metric history
 plt.figure(figsize=(15,5))
 plt.subplot(1,2,1)
 plt.plot(hist.history['loss'])
@@ -181,12 +191,13 @@ with open("../pred_y.csv", "w") as file:
     file.write("ChallengeID,")
     np.savetxt(file, y_data.columns.to_numpy().reshape(1, len(y_data.columns)), fmt='%s', delimiter=",")
 
+    # Split test data to reduce memory usage
     for i, x_test_split in enumerate(np.array_split(x_test, nb_split)):
         x_test_split = splitter(x_test_split)
         print(f"\tSplit {i+1}/{nb_split}")
 
         res = model.predict(x_test_split)
-        res = res > 0.5
+        res = res > 0.5 # Constant threshold
         res = res.astype(int)
         res = np.concatenate((index_split[i].to_numpy().reshape(res.shape[0], 1), res), axis=1)
 

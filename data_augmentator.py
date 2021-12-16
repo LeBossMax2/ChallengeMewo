@@ -1,3 +1,8 @@
+'''
+This script augments the data by adding noise
+It is not currently working
+'''
+
 import pandas as pd
 import numpy as np
 
